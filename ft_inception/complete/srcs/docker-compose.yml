@@ -1,0 +1,154 @@
+version: '3'
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: requirements/nginx/Dockerfile
+    image: nginx
+    container_name: nginx_inc
+    depends_on:
+      - wordpress
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - inception
+    env_file:
+      - .env
+    volumes:
+      - wp-volume:/var/www/wordpress
+    restart: unless-stopped
+
+  mariadb:
+    build:
+      context: .
+      dockerfile: requirements/mariadb/Dockerfile
+    image: mariadb
+    container_name: mariadb_inc
+    #ports:
+      #- "3306:3306"
+    networks:
+      - inception
+    env_file:
+      - .env
+    volumes:
+      - db-volume:/var/lib/mysql
+    restart: unless-stopped
+
+  wordpress:
+    build:
+      context: .
+      dockerfile: requirements/wordpress/Dockerfile
+    image: wordpress
+    container_name: wordpress_inc
+    depends_on:
+      - mariadb
+    ports:
+      - "9000:9000"
+    restart: always
+    networks:
+      - inception
+    env_file:
+      - .env
+    volumes:
+      - wp-volume:/var/www/wordpress
+
+  redis:
+    build: 
+      context: .
+      dockerfile: ./requirements/bonus/redis/Dockerfile
+    image: redis
+    container_name: redis_inc
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - inception
+
+  vsftpd:
+    build:
+      context: .
+      dockerfile: requirements/bonus/vsftpd/Dockerfile
+    image: vsftpd
+    container_name: vsftpd_inc
+    env_file:
+      - .env
+    depends_on:
+      - wordpress
+    ports:
+      - "21:21"
+      - "10100-10110:10100-10110"
+    volumes:
+      - wp-volume:/var/www/wordpress
+    networks:
+     - inception
+    restart: unless-stopped
+
+  adminer:
+    build:
+      context: .
+      dockerfile: requirements/bonus/adminer/Dockerfile
+    image: adminer
+    container_name: adminer_inc
+    depends_on:
+      - mariadb
+    ports:
+      - "8080:8080"
+    networks:
+     - inception
+    restart: unless-stopped
+
+  website:
+    build:
+      context: .
+      dockerfile: requirements/bonus/website/Dockerfile
+    image: website
+    container_name: website_inc
+    ports:
+      - "8888:8888"
+    networks:
+      - inception
+    restart: unless-stopped
+
+  cadvisor:
+    build:
+      context: .
+      dockerfile: requirements/bonus/cadvisor/Dockerfile
+    image: cadvisor
+    container_name: cadvisor_inc
+    depends_on:
+      - nginx
+      - mariadb
+      - wordpress
+      - adminer
+      - vsftpd
+    ports:
+      - "8090:8090"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+     - inception
+    restart: unless-stopped
+
+
+volumes:
+  wp-volume:
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/${USER}/data/wordpress
+
+  db-volume:
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/${USER}/data/mariadb
+
+networks:
+  inception:
+    driver: bridge
